@@ -1,7 +1,7 @@
 {
 	"name": "@janiscommerce/webhook-trigger",
 	"version": "0.1.0",
-	"description": "",
+	"description": "A wrapper for webhooks integration",
 	"main": "lib/index.js",
 	"scripts": {
 		"test": "export TEST_ENV=true; mocha --exit -R nyan --recursive tests/",
@@ -36,5 +36,8 @@
 		"nyc": "^15.1.0",
 		"sinon": "^9.2.1",
 		"typescript": "^4.1.3"
+	},
+	"dependencies": {
+		"@janiscommerce/microservice-call": "^4.2.0"
 	}
 }
