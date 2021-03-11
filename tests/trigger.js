@@ -4,7 +4,7 @@ const assert = require('assert');
 const sinon = require('sinon');
 const MicroServiceCall = require('@janiscommerce/microservice-call');
 
-const WebhookTrigger = require('../lib');
+const { WebhookTrigger } = require('../lib');
 
 describe('Webhook Trigger', () => {
 
