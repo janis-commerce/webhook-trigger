@@ -54,7 +54,7 @@ Then, add your lambda function serverless config file. If you are using [serverl
 ["function", {
 	"functionName": "WebhookTriggersRegistration",
 	"handler": "src/lambda/WebhookTriggersRegistration/index.handler",
-	"description": "Webhook Triggers Registration",
+	"description": "Webhook Triggers Registration"
 }]
 ```
 
