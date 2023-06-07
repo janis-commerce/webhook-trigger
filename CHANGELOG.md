@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.0.0] - 2023-06-07
+### Changed
+- Update package [@janiscommerce/microservice-call](https://www.npmjs.com/package/@janiscommerce/microservice-call) that use AWS SDK V3
+
 ## [0.2.1] - 2021-06-24
 ### Fixed
 - Added ApiSession to include janis-client in call to Webhook API

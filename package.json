@@ -35,12 +35,12 @@
 		"mocha": "^10.0.0",
 		"mock-require": "^3.0.3",
 		"nyc": "^15.1.0",
-		"sinon": "^14.0.0",
+		"sinon": "^15.1.0",
 		"typescript": "^4.7.4"
 	},
 	"dependencies": {
 		"@janiscommerce/api-session": "^3.3.1",
-		"@janiscommerce/microservice-call": "^4.3.4",
+		"@janiscommerce/microservice-call": "^5.0.0",
 		"js-yaml": "^4.1.0",
 		"lllog": "^1.1.2"
 	}
