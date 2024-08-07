@@ -16,6 +16,7 @@ npm install @janiscommerce/webhook-trigger
 
 > **IMPORTANT**
 > The `JANIS_SERVICE_NAME` environment variable is required to be set as the current service code.
+> The `JANIS_WEBHOOKS_QUEUE_URL` environment variable is required to be set as the SQS Queue URL of the Webhooks service.
 
 ### Service registration
 
@@ -74,30 +75,93 @@ aws lambda invoke --function-name <ServiceName>-<stage>-WebhookTriggersRegistrat
 
 ### Event triggering
 
-Every time an event happen, you have to trigger it. For that you need to provide the `clientCode`, `entity` and `eventName` associated to the event.
+Every time an event happens, you have to trigger it. For that you need to provide the `clientCode`, `entity` and `eventName` associated to the event.
 Additionally, you **must** provide the `content` of the event hook. This content **must** be a string of approximately less than 240Kb. In case you provide an object instead if a string, it will be JSON encoded for you. This content will be the request body that will be sent to the subscribers.
 
-The `WebhookTrigger.send` signature is the following:
+The `WebhookTrigger.send` signature is the following (typings are included in the package for intellisense):
 
-```js
-interface WebhookResponse {
-	statusCode: number;
-	body: object;
-}
+```ts
+type SendMessageSuccess = {
+    success: true;
+    messageId: string;
+};
+type SendMessageError = {
+    success: false;
+    message: object;
+    errorMessage: string;
+};
 
-WebhookTrigger.send(clientCode: string, entity: string, eventName: string, content: string | object): Promise<WebhookResponse>;
+WebhookTrigger.send(clientCode: string, entity: string, eventName: string, content: string | object): Promise<SendMessageSuccess | SendMessageError>
 ```
+
+This method only rejects when required env vars are missing, to make easier to detect this issues on early testing. Errors ocurring at network or queue levels will be reported as `SendMessageError` in the return value.
+
+### :new: Batch event triggering
+
+Starting in v2, it's possible to trigger multiple events at once. To do so, use the `WebhookTrigger.sendBatch` method, passing an array of events.
+
+The `WebhookTrigger.sendBatch` signature is the following (typings are included in the package for intellisense):
+
+```ts
+type WebhookEvent = {
+    clientCode: string;
+    entity: string;
+    eventName: string;
+    content: string | {
+        [x: string]: any;
+    };
+};
+
+type SendMessageBatchResult = {
+    successCount: number;
+    failedCount: number;
+    outputs: SendMessageSuccess[] | SendMessageError[];
+};
+
+WebhookTrigger.sendBatch(events: WebhookEvent[]): Promise<SendMessageBatchResult>
+```
+
+This method only rejects when required env vars are missing or the events sent are not an array, to make easier to detect this issues on early testing. Errors ocurring at network, queue or individual event validation levels will be reported as a `failedCount` and the detail will be present as a `SendMessageError` in the `outputs` property.
 
 ## :computer: Examples
 
-> Send a webhook when an order is created
+> Send an event when an order is created
 
 ```js
 const WebhookTrigger = require('@janiscommerce/webhook-trigger');
 
 await WebhookTrigger.send('currentClientCode', 'order', 'created', {
-	id: 'd555345345345as67a342a',
+	id: 'd555345345345aa67a342a55',
 	dateCreated: new Date(),
 	amount: 10.40
 });
+```
+
+> Send multiple events when multiple orders are dispatched (you could even send events for more than one `clientCode` and/or each with a different `eventName`)
+
+```js
+const WebhookTrigger = require('@janiscommerce/webhook-trigger');
+
+await WebhookTrigger.send([
+	{
+		clientCode: 'currentClientCode',
+		entity: 'order',
+		eventName: 'dispatched',
+		content: {
+			id: 'd555345345345aa67a342a55',
+			dateCreated: new Date(),
+			amount: 10.40
+		}
+	},
+	{
+		clientCode: 'currentClientCode',
+		entity: 'order',
+		eventName: 'dispatched',
+		content: {
+			id: 'e55a3a53e5645aa67a34254a',
+			dateCreated: new Date(),
+			amount: 32.5
+		}
+	}
+]);
 ```
