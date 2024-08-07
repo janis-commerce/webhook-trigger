@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const sinon = require('sinon');
-const MicroServiceCall = require('@janiscommerce/microservice-call');
+const { Invoker } = require('@janiscommerce/lambda');
 
 const { Registration } = require('../lib');
 
@@ -86,7 +86,7 @@ describe('Service Registration', () => {
 
 		beforeEach(() => {
 			ensureEnvVar(serviceName);
-			sinon.stub(MicroServiceCall.prototype, 'call');
+			sinon.stub(Invoker, 'serviceCall');
 		});
 
 		afterEach(() => {
@@ -94,64 +94,38 @@ describe('Service Registration', () => {
 			sinon.restore();
 		});
 
-		const webhooksResponse = {
-			SendMessageResponse: {
-				ResponseMetadata: {
-					RequestId: 'e629f0af-7c92-51aa-bd60-a86ff0c263e8'
-				},
-				SendMessageResult: {
-					MD5OfMessageAttributes: null,
-					MD5OfMessageBody: 'e2f6964ff052042abb3718e9f4a431f5',
-					MD5OfMessageSystemAttributes: null,
-					MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446',
-					SequenceNumber: null
-				}
-			}
-		};
+		it('Should reject if Lambda invoker fails', async () => {
 
-		it('Should reject if MicroServiceCall fails', async () => {
-
-			MicroServiceCall.prototype.call.rejects(new Error('Internal error'));
+			Invoker.serviceCall.rejects(new Error('Internal error'));
 
 			await assert.rejects(() => Registration.register(triggers), {
 				message: 'Internal error'
 			});
 
-			sinon.assert.calledOnceWithExactly(MicroServiceCall.prototype.call, 'webhooks', 'service', 'register', triggers);
+			sinon.assert.calledOnceWithExactly(Invoker.serviceCall, 'webhooks', 'RegisterServiceTriggers', {
+				serviceCode: serviceName,
+				triggers
+			});
 		});
 
 		it('Should resolve MicroServiceCall response if no errors occur, without encoding a string content', async () => {
 
-			MicroServiceCall.prototype.call.resolves({
+			Invoker.serviceCall.resolves({
 				statusCode: 200,
-				body: { ...webhooksResponse }
+				payload: {}
 			});
 
 			const response = await Registration.register(triggers);
 
 			assert.deepStrictEqual(response, {
 				statusCode: 200,
-				body: webhooksResponse
+				payload: {}
 			});
 
-			sinon.assert.calledOnceWithExactly(MicroServiceCall.prototype.call, 'webhooks', 'service', 'register', triggers);
-		});
-
-		it('Should resolve MicroServiceCall response if no errors occur, JSON encoding an object content', async () => {
-
-			MicroServiceCall.prototype.call.resolves({
-				statusCode: 200,
-				body: { ...webhooksResponse }
+			sinon.assert.calledOnceWithExactly(Invoker.serviceCall, 'webhooks', 'RegisterServiceTriggers', {
+				serviceCode: serviceName,
+				triggers
 			});
-
-			const response = await Registration.register(triggers);
-
-			assert.deepStrictEqual(response, {
-				statusCode: 200,
-				body: webhooksResponse
-			});
-
-			sinon.assert.calledOnceWithExactly(MicroServiceCall.prototype.call, 'webhooks', 'service', 'register', triggers);
 		});
 	});
 
