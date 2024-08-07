@@ -2,6 +2,10 @@
 
 The following are the breaking changes from v1 to v2
 
+## Node 14 is no longer supported
+
+Minimum support has been moved to node 18
+
 ## Environment variable `JANIS_WEBHOOKS_QUEUE_URL` must now be defined
 
 This has to be defined as the URL of the Queue of the Webhook Service. It should look something like this: `https://sqs.region.amazonaws.com/accountId/WebhookEvents`
