@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.0.0] - 2024-08-08
+### Changed
+- **BREAKING CHANGE** Migrated Registration and Event emitting from APIs to Lambda and direct SQS integration. See [Migration guide](/migration-guides/v1-to-v2.md)
+- **BREAKING CHANGE** Dropped support for node 14 and 16.
+
 ## [1.0.0] - 2023-06-07
 ### Changed
 - Update package [@janiscommerce/microservice-call](https://www.npmjs.com/package/@janiscommerce/microservice-call) that use AWS SDK V3
