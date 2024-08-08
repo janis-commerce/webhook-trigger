@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.1.0] - 2024-08-08
+### Added
+- `JANIS_WEBHOOKS_QUEUE_URL` env var is now included in SLS Helper hooks
+
 ## [2.0.0] - 2024-08-08
 ### Changed
 - **BREAKING CHANGE** Migrated Registration and Event emitting from APIs to Lambda and direct SQS integration. See [Migration guide](/migration-guides/v1-to-v2.md)
