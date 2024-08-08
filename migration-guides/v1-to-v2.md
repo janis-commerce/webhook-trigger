@@ -10,6 +10,10 @@ Minimum support has been moved to node 18
 
 This has to be defined as the URL of the Queue of the Webhook Service. It should look something like this: `https://sqs.region.amazonaws.com/accountId/WebhookEvents`
 
+## New permissions required
+
+You need to add required permissions as mentioned in the [README](/README.md#permissions).
+
 ## `Webhook.send()` returns a different type
 
 Previously, this method returned a raw object with `statusCode` and `body` from the Webhooks service. It also could reject if the upstream service failed.

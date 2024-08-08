@@ -18,6 +18,25 @@ npm install @janiscommerce/webhook-trigger
 > The `JANIS_SERVICE_NAME` environment variable is required to be set as the current service code.
 > The `JANIS_WEBHOOKS_QUEUE_URL` environment variable is required to be set as the SQS Queue URL of the Webhooks service.
 
+### Permissions
+
+You need to add permissions to send messages to the Webhooks SQS Queue to your execution role. If you run your service in AWS Lambda with Serverless Helper, you can import and use the `serverlessHelperHooks` function to add proper permissions.
+
+The following is an example of implementation:
+
+```js
+const { helper } = require('sls-helper');
+const { serverlessHelperHooks } = require('@janiscommerce/webhook-trigger');
+
+module.exports = helper({
+	hooks: [
+		...serverlessHelperHooks()
+	]
+});
+```
+
+If not, be sure to give your execution role the permission to perform `sqs:SendMessage` on the SQS Queue.
+
 ### Service registration
 
 Service registration is the process where a service publishes its triggers so the user can create a Webhook subscription for them.
