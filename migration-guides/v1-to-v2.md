@@ -14,6 +14,24 @@ This has to be defined as the URL of the Queue of the Webhook Service. It should
 
 You need to add required permissions as mentioned in the [README](/README.md#permissions).
 
+## Trace layer
+
+In case you're using Serverless Helper Janis Plugin, it's recommended to remove the Trace layer from your registration lambda, to avoid timeout issues when registering them. Just add it like this:
+
+```diff
+[
+	[
+		"function", {
+			"functionName": "WebhookTriggersRegistration",
+			"handler": "src/lambda/WebhookTriggersRegistration/index.handler",
+			"description": "Webhook Triggers Registration",
++			"layers": []
+		}
+	]
+]
+
+```
+
 ## `Webhook.send()` returns a different type
 
 Previously, this method returned a raw object with `statusCode` and `body` from the Webhooks service. It also could reject if the upstream service failed.
