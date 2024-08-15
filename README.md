@@ -135,7 +135,7 @@ type WebhookEvent = {
 type SendMessageBatchResult = {
     successCount: number;
     failedCount: number;
-    outputs: SendMessageSuccess[] | SendMessageError[];
+    outputs: (SendMessageSuccess | SendMessageError)[];
 };
 
 WebhookTrigger.sendBatch(events: WebhookEvent[]): Promise<SendMessageBatchResult>
