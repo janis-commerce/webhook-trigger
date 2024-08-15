@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.1.1] - 2024-08-15
+### Fixed
+- Sent batch return type definition fix for `outputs` array
+
 ## [2.1.0] - 2024-08-08
 ### Added
 - `JANIS_WEBHOOKS_QUEUE_URL` env var is now included in SLS Helper hooks
