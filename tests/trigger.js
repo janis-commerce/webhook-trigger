@@ -256,7 +256,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(result, {
 					successCount: 0,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [
 						{
 							success: false,
@@ -278,7 +278,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(result, {
 					successCount: 0,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [
 						{
 							success: false,
@@ -300,7 +300,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(result, {
 					successCount: 0,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [
 						{
 							success: false,
@@ -322,7 +322,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(result, {
 					successCount: 0,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [
 						{
 							success: false,
@@ -344,7 +344,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(result, {
 					successCount: 0,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [
 						{
 							success: false,
@@ -414,7 +414,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(response, {
 					successCount: 0,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [{
 						success: false,
 						message: {
@@ -456,7 +456,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(response, {
 					successCount: 1,
-					errorCount: 0,
+					failedCount: 0,
 					outputs: [{
 						success: true,
 						messageId: queueResponse.Successful[0].MessageId
@@ -491,7 +491,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(response, {
 					successCount: 1,
-					errorCount: 0,
+					failedCount: 0,
 					outputs: [{
 						success: true,
 						messageId: queueResponse.Successful[0].MessageId
@@ -532,7 +532,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(response, {
 					successCount: 15,
-					errorCount: 0,
+					failedCount: 0,
 					outputs: new Array(15).fill({
 						success: true,
 						messageId: queueResponse.Successful[0].MessageId
@@ -598,7 +598,7 @@ describe('Webhook Trigger', () => {
 
 				assert.deepStrictEqual(response, {
 					successCount: 1,
-					errorCount: 1,
+					failedCount: 1,
 					outputs: [
 						{
 							success: true,
