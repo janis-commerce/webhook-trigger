@@ -1,6 +1,6 @@
 {
 	"name": "@janiscommerce/webhook-trigger",
-	"version": "2.1.1",
+	"version": "2.1.2",
 	"description": "A wrapper for webhooks integration",
 	"main": "lib/index.js",
 	"scripts": {
