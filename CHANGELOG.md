@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.1.2] - 2024-08-23
+### Fixed
+- Send batch response now reports `failedCount` properly, instead of `errorCount`
+
 ## [2.1.1] - 2024-08-15
 ### Fixed
 - Sent batch return type definition fix for `outputs` array
