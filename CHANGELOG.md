@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [2.1.3] - 2025-02-20
+### Fixed
+- Added Log.start() to RegistrationLambda to ensure function to end
+
 ## [2.1.2] - 2024-08-23
 ### Fixed
 - Send batch response now reports `failedCount` properly, instead of `errorCount`
