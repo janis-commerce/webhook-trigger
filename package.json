@@ -48,5 +48,8 @@
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-sqs": "^3.624.0"
+	},
+	"engines": {
+		"node": ">=18"
 	}
 }
