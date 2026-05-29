@@ -111,8 +111,14 @@ type SendMessageError = {
     errorMessage: string;
 };
 
-WebhookTrigger.send(clientCode: string, entity: string, eventName: string, content: string | object): Promise<SendMessageSuccess | SendMessageError>
+type SendOptions = {
+    targetUserId?: string;
+};
+
+WebhookTrigger.send(clientCode: string, entity: string, eventName: string, content: string | object, options?: SendOptions): Promise<SendMessageSuccess | SendMessageError>
 ```
+
+The optional `options.targetUserId` field allows directing the webhook delivery only to subscriptions created by a specific user. If omitted, the event is delivered to all matching subscriptions as usual.
 
 This method only rejects when required env vars are missing, to make easier to detect this issues on early testing. Errors ocurring at network or queue levels will be reported as `SendMessageError` in the return value.
 
@@ -130,6 +136,7 @@ type WebhookEvent = {
     content: string | {
         [x: string]: any;
     };
+    targetUserId?: string;
 };
 
 type SendMessageBatchResult = {
@@ -140,6 +147,8 @@ type SendMessageBatchResult = {
 
 WebhookTrigger.sendBatch(events: WebhookEvent[]): Promise<SendMessageBatchResult>
 ```
+
+The optional `targetUserId` field per event allows directing delivery only to subscriptions created by a specific user. Events without it behave exactly as before.
 
 This method only rejects when required env vars are missing or the events sent are not an array, to make easier to detect this issues on early testing. Errors ocurring at network, queue or individual event validation levels will be reported as a `failedCount` and the detail will be present as a `SendMessageError` in the `outputs` property.
 

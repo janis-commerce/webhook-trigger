@@ -20,6 +20,7 @@ describe('serverless-helper-hooks', () => {
 
 		assert.deepStrictEqual(serverlessHelperHooks(), [
 			['envVars', {
+				// eslint-disable-next-line no-template-curly-in-string
 				JANIS_WEBHOOKS_QUEUE_URL: '${env:JANIS_WEBHOOKS_QUEUE_URL}'
 			}],
 			['iamStatement', {

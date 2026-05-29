@@ -216,6 +216,54 @@ describe('Webhook Trigger', () => {
 					}
 				});
 			});
+
+			it('Should include targetUserId in the message body when provided via options', async () => {
+
+				const targetUserId = '6a01b75b8dfc8114daa5295c';
+
+				this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+				const response = await WebhookTrigger.send(clientCode, entity, eventName, content, { targetUserId });
+
+				assert.deepStrictEqual(response, {
+					success: true,
+					messageId: queueResponse.MessageId
+				});
+
+				assertAwsSdkCall(SendMessageCommand, {
+					QueueUrl: defaultQueueUrl,
+					MessageBody: JSON.stringify({
+						service: serviceName,
+						entity,
+						eventName,
+						content: contentString,
+						targetUserId
+					}),
+					MessageAttributes: {
+						'janis-client': {
+							DataType: 'String',
+							StringValue: clientCode
+						}
+					}
+				});
+			});
+
+			it('Should not include targetUserId in the message body when options are not provided', async () => {
+
+				this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+				const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
+
+				assert.deepStrictEqual(response, {
+					success: true,
+					messageId: queueResponse.MessageId
+				});
+
+				const commandCall = this.SQSClientMock.commandCalls(SendMessageCommand)[0];
+				const parsedBody = JSON.parse(commandCall.args[0].input.MessageBody);
+
+				assert.ok(!Object.hasOwn(parsedBody, 'targetUserId'), 'targetUserId should not be present in the message body');
+			});
 		});
 	});
 
@@ -636,6 +684,83 @@ describe('Webhook Trigger', () => {
 								}
 							}
 						}, {
+							Id: '1',
+							MessageBody: JSON.stringify({
+								service: serviceName,
+								entity,
+								eventName,
+								content: contentString
+							}),
+							MessageAttributes: {
+								'janis-client': {
+									DataType: 'String',
+									StringValue: clientCode
+								}
+							}
+						}
+					]
+				});
+			});
+
+			it('Should include targetUserId only in the message body of events that provide it', async () => {
+
+				const targetUserId = '6a01b75b8dfc8114daa5295c';
+
+				this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+					Successful: [
+						{
+							MD5OfMessageAttributes: null,
+							MD5OfMessageBody: 'e2f6964ff052042abb3718e9f4a431f5',
+							MD5OfMessageSystemAttributes: null,
+							MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446',
+							SequenceNumber: null
+						},
+						{
+							MD5OfMessageAttributes: null,
+							MD5OfMessageBody: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+							MD5OfMessageSystemAttributes: null,
+							MessageId: 'aa112233-bbcc-4455-dde6-ff7788990011',
+							SequenceNumber: null
+						}
+					]
+				});
+
+				const response = await WebhookTrigger.sendBatch([
+					{
+						clientCode, entity, eventName, content, targetUserId
+					},
+					{ clientCode, entity, eventName, content }
+				]);
+
+				assert.deepStrictEqual(response, {
+					successCount: 2,
+					failedCount: 0,
+					outputs: [
+						{ success: true, messageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' },
+						{ success: true, messageId: 'aa112233-bbcc-4455-dde6-ff7788990011' }
+					]
+				});
+
+				assertAwsSdkCall(SendMessageBatchCommand, {
+					QueueUrl: defaultQueueUrl,
+					Entries: [
+						{
+							Id: '0',
+							MessageBody: JSON.stringify({
+								service: serviceName,
+								entity,
+								eventName,
+								content: contentString,
+								targetUserId
+							}),
+							MessageAttributes: {
+								'janis-client': {
+									DataType: 'String',
+									StringValue: clientCode
+								}
+							}
+						},
+						{
 							Id: '1',
 							MessageBody: JSON.stringify({
 								service: serviceName,
