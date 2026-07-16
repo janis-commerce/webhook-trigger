@@ -7,7 +7,7 @@ const sinon = require('sinon');
 
 const { invokePermissions } = require('@janiscommerce/lambda');
 
-const { subscriptionsConsumerServerlessHelperHooks } = require('../lib');
+const subscriptionsConsumerHooks = require('../lib/subscriptions-consumer-hooks');
 
 describe('subscriptions-consumer-hooks', () => {
 
@@ -24,7 +24,7 @@ describe('subscriptions-consumer-hooks', () => {
 
 		const SQSHelper = buildSQSHelper(['MAIN_CONSUMER', 'MAIN_QUEUE']);
 
-		const hooks = subscriptionsConsumerServerlessHelperHooks(SQSHelper);
+		const hooks = subscriptionsConsumerHooks(SQSHelper);
 
 		assert.deepStrictEqual(hooks, [
 			'SQS_PERMISSIONS',
@@ -34,19 +34,18 @@ describe('subscriptions-consumer-hooks', () => {
 		]);
 	});
 
-	it('Should build the hooks subscribing the queue to the remote topic filtered by service with the resilience chain', () => {
+	it('Should build the hooks subscribing the queue to the remote topic (plain fanout) with the resilience chain', () => {
 
 		const SQSHelper = buildSQSHelper([]);
 
-		subscriptionsConsumerServerlessHelperHooks(SQSHelper);
+		subscriptionsConsumerHooks(SQSHelper);
 
 		sinon.assert.calledOnceWithExactly(SQSHelper.buildHooks, {
 			name: 'syncWebhookSubscriptions',
 			sourceSnsTopic: {
 				scope: 'remote',
 				serviceCode: 'webhooks',
-				name: 'clientSubscriptionsUpdated',
-				filterPolicy: { services: ['${self:custom.serviceCode}'] }
+				name: 'clientSubscriptionsUpdated'
 			},
 			consumerProperties: {
 				prefixPath: 'webhook',
@@ -63,7 +62,7 @@ describe('subscriptions-consumer-hooks', () => {
 
 		const SQSHelper = buildSQSHelper([]);
 
-		subscriptionsConsumerServerlessHelperHooks(SQSHelper, {
+		subscriptionsConsumerHooks(SQSHelper, {
 			consumerProperties: { prefixPath: 'custom-path', batchSize: 5 },
 			mainQueueProperties: { maxReceiveCount: 2 },
 			delayQueueProperties: { delaySeconds: 60 }
@@ -74,8 +73,7 @@ describe('subscriptions-consumer-hooks', () => {
 			sourceSnsTopic: {
 				scope: 'remote',
 				serviceCode: 'webhooks',
-				name: 'clientSubscriptionsUpdated',
-				filterPolicy: { services: ['${self:custom.serviceCode}'] }
+				name: 'clientSubscriptionsUpdated'
 			},
 			consumerProperties: {
 				prefixPath: 'custom-path',
@@ -92,7 +90,7 @@ describe('subscriptions-consumer-hooks', () => {
 
 		const SQSHelper = buildSQSHelper([]);
 
-		subscriptionsConsumerServerlessHelperHooks(SQSHelper, {
+		subscriptionsConsumerHooks(SQSHelper, {
 			mainQueueProperties: { generateEnvVars: true }
 		});
 
@@ -101,8 +99,7 @@ describe('subscriptions-consumer-hooks', () => {
 			sourceSnsTopic: {
 				scope: 'remote',
 				serviceCode: 'webhooks',
-				name: 'clientSubscriptionsUpdated',
-				filterPolicy: { services: ['${self:custom.serviceCode}'] }
+				name: 'clientSubscriptionsUpdated'
 			},
 			consumerProperties: {
 				prefixPath: 'webhook',
@@ -113,5 +110,13 @@ describe('subscriptions-consumer-hooks', () => {
 			delayQueueProperties: { delaySeconds: 300 },
 			delayConsumerProperties: { useMainHandler: true }
 		});
+	});
+
+	it('Should expose the default prefix path used to mount the consumer', () => {
+		assert.strictEqual(subscriptionsConsumerHooks.DEFAULT_PREFIX_PATH, 'webhook');
+	});
+
+	it('Should expose the consumer handler filename derived from the queue name', () => {
+		assert.strictEqual(subscriptionsConsumerHooks.CONSUMER_HANDLER_FILE, 'sync-webhook-subscriptions-consumer.js');
 	});
 });
