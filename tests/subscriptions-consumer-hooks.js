@@ -53,7 +53,7 @@ describe('subscriptions-consumer-hooks', () => {
 				batchSize: 1,
 				maximumBatchingWindow: 20
 			},
-			mainQueueProperties: { maxReceiveCount: 3 },
+			mainQueueProperties: { maxReceiveCount: 3, generateEnvVars: false },
 			delayQueueProperties: { delaySeconds: 300 },
 			delayConsumerProperties: { useMainHandler: true }
 		});
@@ -82,8 +82,35 @@ describe('subscriptions-consumer-hooks', () => {
 				batchSize: 5,
 				maximumBatchingWindow: 20
 			},
-			mainQueueProperties: { maxReceiveCount: 2 },
+			mainQueueProperties: { maxReceiveCount: 2, generateEnvVars: false },
 			delayQueueProperties: { delaySeconds: 60 },
+			delayConsumerProperties: { useMainHandler: true }
+		});
+	});
+
+	it('Should let the host service re-enable the queue URL env var by overriding generateEnvVars', () => {
+
+		const SQSHelper = buildSQSHelper([]);
+
+		subscriptionsConsumerServerlessHelperHooks(SQSHelper, {
+			mainQueueProperties: { generateEnvVars: true }
+		});
+
+		sinon.assert.calledOnceWithExactly(SQSHelper.buildHooks, {
+			name: 'syncWebhookSubscriptions',
+			sourceSnsTopic: {
+				scope: 'remote',
+				serviceCode: 'webhooks',
+				name: 'clientSubscriptionsUpdated',
+				filterPolicy: { services: ['${self:custom.serviceCode}'] }
+			},
+			consumerProperties: {
+				prefixPath: 'webhook',
+				batchSize: 1,
+				maximumBatchingWindow: 20
+			},
+			mainQueueProperties: { maxReceiveCount: 3, generateEnvVars: true },
+			delayQueueProperties: { delaySeconds: 300 },
 			delayConsumerProperties: { useMainHandler: true }
 		});
 	});
