@@ -6,6 +6,7 @@ const { mockClient } = require('aws-sdk-client-mock');
 const { SQSClient, SendMessageBatchCommand, SendMessageCommand } = require('@aws-sdk/client-sqs');
 
 const { WebhookTrigger } = require('../lib');
+const ClientModel = require('../lib/helpers/client-model');
 
 describe('Webhook Trigger', () => {
 
@@ -93,6 +94,8 @@ describe('Webhook Trigger', () => {
 			beforeEach(() => {
 				ensureEnvVars(serviceName);
 				this.SQSClientMock = mockClient(SQSClient);
+				// Fail-open by default (no synced subscriptions): existing emission behavior is preserved
+				sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
 			});
 
 			afterEach(() => {
@@ -305,6 +308,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(result, {
 					successCount: 0,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [
 						{
 							success: false,
@@ -327,6 +331,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(result, {
 					successCount: 0,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [
 						{
 							success: false,
@@ -349,6 +354,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(result, {
 					successCount: 0,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [
 						{
 							success: false,
@@ -371,6 +377,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(result, {
 					successCount: 0,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [
 						{
 							success: false,
@@ -393,6 +400,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(result, {
 					successCount: 0,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [
 						{
 							success: false,
@@ -414,6 +422,8 @@ describe('Webhook Trigger', () => {
 			beforeEach(() => {
 				ensureEnvVars(serviceName);
 				this.SQSClientMock = mockClient(SQSClient);
+				// Fail-open by default (no synced subscriptions): existing emission behavior is preserved
+				sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
 			});
 
 			afterEach(() => {
@@ -463,6 +473,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(response, {
 					successCount: 0,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [{
 						success: false,
 						message: {
@@ -505,6 +516,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(response, {
 					successCount: 1,
 					failedCount: 0,
+					skippedCount: 0,
 					outputs: [{
 						success: true,
 						messageId: queueResponse.Successful[0].MessageId
@@ -540,6 +552,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(response, {
 					successCount: 1,
 					failedCount: 0,
+					skippedCount: 0,
 					outputs: [{
 						success: true,
 						messageId: queueResponse.Successful[0].MessageId
@@ -581,6 +594,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(response, {
 					successCount: 15,
 					failedCount: 0,
+					skippedCount: 0,
 					outputs: new Array(15).fill({
 						success: true,
 						messageId: queueResponse.Successful[0].MessageId
@@ -647,6 +661,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(response, {
 					successCount: 1,
 					failedCount: 1,
+					skippedCount: 0,
 					outputs: [
 						{
 							success: true,
@@ -735,6 +750,7 @@ describe('Webhook Trigger', () => {
 				assert.deepStrictEqual(response, {
 					successCount: 2,
 					failedCount: 0,
+					skippedCount: 0,
 					outputs: [
 						{ success: true, messageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' },
 						{ success: true, messageId: 'aa112233-bbcc-4455-dde6-ff7788990011' }
@@ -778,6 +794,161 @@ describe('Webhook Trigger', () => {
 					]
 				});
 			});
+		});
+	});
+
+	describe('send() subscription validation', () => {
+
+		beforeEach(() => {
+			ensureEnvVars(serviceName);
+			this.SQSClientMock = mockClient(SQSClient);
+		});
+
+		afterEach(() => {
+			process.env = { ...env };
+			this.SQSClientMock.restore();
+			sinon.restore();
+		});
+
+		const queueResponse = {
+			MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446'
+		};
+
+		const eventKey = `${serviceName}:${entity}:${eventName}`;
+
+		it('Should emit and return the successful result when the client is subscribed to the event', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves([eventKey]);
+			this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, messageId: queueResponse.MessageId });
+
+			sinon.assert.calledOnceWithExactly(ClientModel.getSubscriptions, clientCode);
+			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 1);
+		});
+
+		it('Should skip and return { success: true, skipped: true } when the client is not subscribed to the event', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves([`${serviceName}:other:event`]);
+
+			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, skipped: true });
+			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 0);
+		});
+
+		it('Should skip when the client has an empty subscriptions array', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves([]);
+
+			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, skipped: true });
+			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 0);
+		});
+
+		it('Should fail-open and emit when the client has no synced subscriptions (undefined)', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+			this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, messageId: queueResponse.MessageId });
+			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 1);
+		});
+
+		it('Should fail-open and emit when the subscriptions read fails', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').rejects(new Error('Client not found'));
+			this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, messageId: queueResponse.MessageId });
+			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 1);
+		});
+	});
+
+	describe('sendBatch() subscription validation', () => {
+
+		beforeEach(() => {
+			ensureEnvVars(serviceName);
+			this.SQSClientMock = mockClient(SQSClient);
+		});
+
+		afterEach(() => {
+			process.env = { ...env };
+			this.SQSClientMock.restore();
+			sinon.restore();
+		});
+
+		it('Should emit subscribed events, skip non-subscribed ones and report them in skippedCount', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves([`${serviceName}:order:created`]);
+
+			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+				Successful: [{ MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' }]
+			});
+
+			const response = await WebhookTrigger.sendBatch([
+				{ clientCode: 'clientA', entity: 'order', eventName: 'created', content },
+				{ clientCode: 'clientA', entity: 'order', eventName: 'updated', content }
+			]);
+
+			assert.deepStrictEqual(response, {
+				successCount: 1,
+				failedCount: 0,
+				skippedCount: 1,
+				outputs: [
+					{
+						success: true,
+						skipped: true,
+						message: { clientCode: 'clientA', entity: 'order', eventName: 'updated', content }
+					},
+					{ success: true, messageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' }
+				]
+			});
+
+			const commandCalls = this.SQSClientMock.commandCalls(SendMessageBatchCommand);
+			assert.strictEqual(commandCalls.length, 1);
+			assert.strictEqual(commandCalls[0].args[0].input.Entries.length, 1);
+			assert.strictEqual(commandCalls[0].args[0].input.Entries[0].Id, '0');
+		});
+
+		it('Should fail-open for events whose subscriptions are undefined or fail to read', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').callsFake(async currentClientCode => {
+				if(currentClientCode === 'clientErr')
+					throw new Error('Mongo down');
+				return undefined;
+			});
+
+			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+				Successful: [
+					{ MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' },
+					{ MessageId: 'aa112233-bbcc-4455-dde6-ff7788990011' }
+				]
+			});
+
+			const response = await WebhookTrigger.sendBatch([
+				{ clientCode: 'clientUndef', entity, eventName, content },
+				{ clientCode: 'clientErr', entity, eventName, content }
+			]);
+
+			assert.deepStrictEqual(response, {
+				successCount: 2,
+				failedCount: 0,
+				skippedCount: 0,
+				outputs: [
+					{ success: true, messageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' },
+					{ success: true, messageId: 'aa112233-bbcc-4455-dde6-ff7788990011' }
+				]
+			});
+
+			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageBatchCommand)[0].args[0].input.Entries.length, 2);
 		});
 	});
 

@@ -43,6 +43,7 @@
 	"dependencies": {
 		"@janiscommerce/lambda": "^6.2.1",
 		"@janiscommerce/log": "^5.0.14",
+		"@janiscommerce/sqs-consumer": "^1.2.0",
 		"js-yaml": "^4.1.0",
 		"lllog": "^1.1.2"
 	},
