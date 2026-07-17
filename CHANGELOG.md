@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [3.0.0] - 2026-07-17
 ### Added
 - Send-time subscription pre-filter: `send`/`sendBatch` now skip webhook events for clients with no active subscription for the trigger, based on a local `webhookSubscriptions` copy. Unsynced clients fail open (event is emitted anyway) ([ATR-2474](https://janiscommerce.atlassian.net/browse/ATR-2474))
 - `SyncWebhookSubscriptionsConsumer` that keeps the local `webhookSubscriptions` copy in sync from the `clientSubscriptionsUpdated` topic
