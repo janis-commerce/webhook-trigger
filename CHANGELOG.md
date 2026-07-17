@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Send-time subscription pre-filter: `send`/`sendBatch` now skip webhook events for clients with no active subscription for the trigger, based on a local `webhookSubscriptions` copy. Unsynced clients fail open (event is emitted anyway) ([ATR-2474](https://janiscommerce.atlassian.net/browse/ATR-2474))
+- `SyncWebhookSubscriptionsConsumer` that keeps the local `webhookSubscriptions` copy in sync from the `clientSubscriptionsUpdated` topic
+
+### Changed
+- **BREAKING CHANGE** `serverlessHelperHooks` now requires the `SQSHelper` and is the single mount point for the emitter and the mandatory subscriptions consumer. See [Migration guide](/migration-guides/v2-to-v3.md)
 
 ## [2.2.0] - 2026-05-29
 ### Added
