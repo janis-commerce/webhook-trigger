@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Optional `correlationId` per event in `sendBatch`, echoed back in the corresponding `output` (success, send-failure, skipped and validation-failure), to let the caller correlate each result with its originating event ([ATR-2474](https://janiscommerce.atlassian.net/browse/ATR-2474) / [JCAT-1238](https://janiscommerce.atlassian.net/browse/JCAT-1238))
+- `WebhookTrigger.shouldSend(clientCode, entity, eventName)` to expose the subscription pre-filter (fail-open) and allow short-circuiting expensive processing before attempting to send
 
 ## [3.0.0] - 2026-07-17
 ### Added

@@ -818,7 +818,7 @@ describe('Webhook Trigger', () => {
 
 		it('Should emit and return the successful result when the client is subscribed to the event', async () => {
 
-			sinon.stub(ClientModel, 'getSubscriptions').resolves([eventKey]);
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([eventKey]));
 			this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
 
 			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
@@ -831,7 +831,7 @@ describe('Webhook Trigger', () => {
 
 		it('Should skip and return { success: true, skipped: true } when the client is not subscribed to the event', async () => {
 
-			sinon.stub(ClientModel, 'getSubscriptions').resolves([`${serviceName}:other:event`]);
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:other:event`]));
 
 			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
 
@@ -839,9 +839,9 @@ describe('Webhook Trigger', () => {
 			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 0);
 		});
 
-		it('Should skip when the client has an empty subscriptions array', async () => {
+		it('Should skip when the client has an empty subscriptions Set', async () => {
 
-			sinon.stub(ClientModel, 'getSubscriptions').resolves([]);
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set());
 
 			const response = await WebhookTrigger.send(clientCode, entity, eventName, content);
 
@@ -887,7 +887,7 @@ describe('Webhook Trigger', () => {
 
 		it('Should emit subscribed events, skip non-subscribed ones and report them in skippedCount', async () => {
 
-			sinon.stub(ClientModel, 'getSubscriptions').resolves([`${serviceName}:order:created`]);
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:order:created`]));
 
 			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
 				Successful: [{ MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' }]
@@ -949,6 +949,221 @@ describe('Webhook Trigger', () => {
 			});
 
 			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageBatchCommand)[0].args[0].input.Entries.length, 2);
+		});
+	});
+
+	describe('sendBatch() correlationId', () => {
+
+		beforeEach(() => {
+			ensureEnvVars(serviceName);
+			this.SQSClientMock = mockClient(SQSClient);
+		});
+
+		afterEach(() => {
+			process.env = { ...env };
+			this.SQSClientMock.restore();
+			sinon.restore();
+		});
+
+		it('Should echo the correlationId in the output when the event fails validation', async () => {
+
+			const correlationId = 'corr-validation-1';
+
+			const result = await WebhookTrigger.sendBatch([{
+				clientCode, entity, eventName, content: null, correlationId
+			}]);
+
+			assert.deepStrictEqual(result, {
+				successCount: 0,
+				failedCount: 1,
+				skippedCount: 0,
+				outputs: [{
+					success: false,
+					message: {
+						clientCode, entity, eventName, content: null, correlationId
+					},
+					errorMessage: 'Invalid content. Expected string | object but received null',
+					correlationId
+				}]
+			});
+		});
+
+		it('Should echo the correlationId in the output when the event is skipped', async () => {
+
+			const correlationId = 'corr-skipped-1';
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:other:event`]));
+
+			const result = await WebhookTrigger.sendBatch([{
+				clientCode, entity, eventName, content, correlationId
+			}]);
+
+			assert.deepStrictEqual(result, {
+				successCount: 0,
+				failedCount: 0,
+				skippedCount: 1,
+				outputs: [{
+					success: true,
+					skipped: true,
+					message: {
+						clientCode, entity, eventName, content, correlationId
+					},
+					correlationId
+				}]
+			});
+		});
+
+		it('Should echo the correlationId in the output of a successfully sent event', async () => {
+
+			const correlationId = 'corr-success-1';
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+				Successful: [{ Id: '0', MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' }]
+			});
+
+			const result = await WebhookTrigger.sendBatch([{
+				clientCode, entity, eventName, content, correlationId
+			}]);
+
+			assert.deepStrictEqual(result, {
+				successCount: 1,
+				failedCount: 0,
+				skippedCount: 0,
+				outputs: [{
+					success: true,
+					messageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446',
+					correlationId
+				}]
+			});
+		});
+
+		it('Should echo the correlationId in the output of an event that failed to send', async () => {
+
+			const correlationId = 'corr-failure-1';
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+				Failed: [{ Id: '0', Message: 'SDK Error' }]
+			});
+
+			const result = await WebhookTrigger.sendBatch([{
+				clientCode, entity, eventName, content, correlationId
+			}]);
+
+			assert.deepStrictEqual(result, {
+				successCount: 0,
+				failedCount: 1,
+				skippedCount: 0,
+				outputs: [{
+					success: false,
+					message: {
+						clientCode,
+						service: serviceName,
+						entity,
+						eventName,
+						content: contentString
+					},
+					errorMessage: 'SDK Error',
+					correlationId
+				}]
+			});
+		});
+
+		it('Should not include correlationId in any output when events do not provide it (backward-compat)', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+				Successful: [{ Id: '0', MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' }]
+			});
+
+			const result = await WebhookTrigger.sendBatch([{ clientCode, entity, eventName, content }]);
+
+			assert.deepStrictEqual(result, {
+				successCount: 1,
+				failedCount: 0,
+				skippedCount: 0,
+				outputs: [{
+					success: true,
+					messageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446'
+				}]
+			});
+
+			assert.ok(!Object.hasOwn(result.outputs[0], 'correlationId'), 'correlationId should not be present in the output');
+		});
+
+		it('Should not include the correlationId in the MessageBody sent to the queue', async () => {
+
+			const correlationId = 'corr-not-leaked-1';
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+			this.SQSClientMock.on(SendMessageBatchCommand).resolves({
+				Successful: [{ Id: '0', MessageId: 'ff543ef5-acfa-481b-bcf0-7d50f8372446' }]
+			});
+
+			await WebhookTrigger.sendBatch([{
+				clientCode, entity, eventName, content, correlationId
+			}]);
+
+			const commandCall = this.SQSClientMock.commandCalls(SendMessageBatchCommand)[0];
+			const parsedBody = JSON.parse(commandCall.args[0].input.Entries[0].MessageBody);
+
+			assert.ok(!Object.hasOwn(parsedBody, 'correlationId'), 'correlationId should not be present in the message body');
+		});
+	});
+
+	describe('shouldSend()', () => {
+
+		beforeEach(() => {
+			ensureEnvVars(serviceName);
+		});
+
+		afterEach(() => {
+			process.env = { ...env };
+			sinon.restore();
+		});
+
+		const eventKey = `${serviceName}:${entity}:${eventName}`;
+
+		it('Should reject if JANIS_SERVICE_NAME environment variable is not set', async () => {
+			delete process.env.JANIS_SERVICE_NAME;
+			await assert.rejects(() => WebhookTrigger.shouldSend(clientCode, entity, eventName), /JANIS_SERVICE_NAME/);
+		});
+
+		it('Should resolve true when the client is subscribed to the event', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([eventKey]));
+
+			const result = await WebhookTrigger.shouldSend(clientCode, entity, eventName);
+
+			assert.strictEqual(result, true);
+		});
+
+		it('Should resolve false when the client is not subscribed to the event', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:other:event`]));
+
+			const result = await WebhookTrigger.shouldSend(clientCode, entity, eventName);
+
+			assert.strictEqual(result, false);
+		});
+
+		it('Should fail-open and resolve true when the client has no synced subscriptions (undefined)', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+
+			const result = await WebhookTrigger.shouldSend(clientCode, entity, eventName);
+
+			assert.strictEqual(result, true);
+		});
+
+		it('Should fail-open and resolve true when the subscriptions read fails', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').rejects(new Error('Client not found'));
+
+			const result = await WebhookTrigger.shouldSend(clientCode, entity, eventName);
+
+			assert.strictEqual(result, true);
 		});
 	});
 
