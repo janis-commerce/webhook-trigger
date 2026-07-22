@@ -189,9 +189,9 @@ This method only rejects when required env vars are missing or the events sent a
 
 ### Subscription pre-filtering
 
-`send()` and `sendBatch()` avoid queuing webhooks nobody is subscribed to. They validate each event against a **local copy** of the client's subscriptions, stored in the service's own `clients` collection under the `webhookSubscriptions` field (an array of `service:entity:eventName` keys). On read, it's converted to a `Set` (kept in memory only) for O(1) lookup and cached per `clientCode` for 5 minutes, since this check runs at very high frequency (specially for stock webhooks).
+`send()` and `sendBatch()` avoid queuing webhooks nobody is subscribed to. They validate each event against a **local copy** of the client's subscriptions, stored in the service's own `clients` collection under the `webhookSubscriptions` field (an array of `service:entity:eventName` keys). The subscriptions are cached per `clientCode` for 5 minutes.
 
-- If `webhookSubscriptions` is synced (including an empty array) → the event is queued only if the set includes `${JANIS_SERVICE_NAME}:${entity}:${eventName}`, otherwise it is skipped.
+- If `webhookSubscriptions` is synced (including an empty array) → the event is queued only if it includes `${JANIS_SERVICE_NAME}:${entity}:${eventName}`, otherwise it is skipped.
 - If `webhookSubscriptions` is `undefined` (client never synced) or the read fails (client not found, client model missing, Mongo error) → **fail-open**: the event is queued anyway. The former case is logged as a `warn`, the latter as an `error`.
 
 This means a service that updates the package but does **not** mount the consumer (below) never populates `webhookSubscriptions`, so it always fail-opens and behaves exactly as before. The pre-filtering only kicks in once the consumer is mounted (and the initial backfill has run).
@@ -210,7 +210,7 @@ The local copy is kept up to date by push: this package exposes an SQS consumer 
 WebhookTrigger.shouldSend(clientCode: string, entity: string, eventName: string): Promise<boolean>
 ```
 
-It runs the exact same check described above (same `Set`, same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself.
+It runs the exact same check described above (same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself.
 
 ```js
 const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');

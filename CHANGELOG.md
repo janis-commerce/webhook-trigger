@@ -10,10 +10,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Optional `correlationId` per event in `sendBatch`, echoed back in the corresponding `output` (success, send-failure, skipped and validation-failure), to let the caller correlate each result with its originating event ([ATR-2474](https://janiscommerce.atlassian.net/browse/ATR-2474) / [JCAT-1238](https://janiscommerce.atlassian.net/browse/JCAT-1238))
 - `WebhookTrigger.shouldSend(clientCode, entity, eventName)` to expose the subscription pre-filter (fail-open) and allow short-circuiting expensive processing before attempting to send
 
-### Changed
-- `ClientModel.getSubscriptions` now queries only the `code` and `webhookSubscriptions` fields and returns/caches the subscriptions as a `Set` for O(1) lookup, instead of the full client document and an array
-- The fail-open log for clients with no synced subscriptions in `has-subscription` is now a `warn` instead of an `info`
-
 ## [3.0.0] - 2026-07-17
 ### Added
 - Send-time subscription pre-filter: `send`/`sendBatch` now skip webhook events for clients with no active subscription for the trigger, based on a local `webhookSubscriptions` copy. Unsynced clients fail open (event is emitted anyway) ([ATR-2474](https://janiscommerce.atlassian.net/browse/ATR-2474))
