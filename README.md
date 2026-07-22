@@ -91,7 +91,7 @@ Then you can test your registration by executing the following:
 npx sls invoke local -f WebhookTriggersRegistration
 ```
 
-Once you have everything validated, you **should** include this invocation in you CI/CD pipeline:
+Once you have everything validated, you **should** include this invocation in your CI/CD pipeline:
 
 ```sh
 aws lambda invoke --function-name <ServiceName>-<stage>-WebhookTriggersRegistration output --log-type Tail --query 'LogResult' --output text | base64 -d
@@ -102,7 +102,7 @@ aws lambda invoke --function-name <ServiceName>-<stage>-WebhookTriggersRegistrat
 ### Event triggering
 
 Every time an event happens, you have to trigger it. For that you need to provide the `clientCode`, `entity` and `eventName` associated to the event.
-Additionally, you **must** provide the `content` of the event hook. This content **must** be a string of approximately less than 240Kb. In case you provide an object instead if a string, it will be JSON encoded for you. This content will be the request body that will be sent to the subscribers.
+Additionally, you **must** provide the `content` of the event hook. This content **must** be a string of approximately less than 240Kb. In case you provide an object instead of a string, it will be JSON encoded for you. This content will be the request body that will be sent to the subscribers.
 
 The `WebhookTrigger.send` signature is the following (typings are included in the package for intellisense):
 
@@ -110,15 +110,19 @@ The `WebhookTrigger.send` signature is the following (typings are included in th
 type SendMessageSuccess = {
     success: true;
     messageId: string;
+    correlationId?: string; // Only present in sendBatch outputs, and only when the event provided it
 };
 type SendMessageError = {
     success: false;
     message: object;
     errorMessage: string;
+    correlationId?: string; // Only present in sendBatch outputs, and only when the event provided it
 };
 type SendMessageSkipped = {
     success: true;
     skipped: true;
+    message?: object; // Only present in sendBatch outputs
+    correlationId?: string; // Only present in sendBatch outputs, and only when the event provided it
 };
 
 type SendOptions = {
@@ -132,9 +136,9 @@ The optional `options.targetUserId` field allows directing the webhook delivery 
 
 Before queuing, the event is validated against the client's locally synced subscriptions (see [Subscription pre-filtering](#subscription-pre-filtering)). If the client has no active subscription for the event, it is **not** queued and the method resolves with `{ success: true, skipped: true }`.
 
-This method only rejects when required env vars are missing, to make easier to detect this issues on early testing. Errors ocurring at network or queue levels will be reported as `SendMessageError` in the return value.
+This method only rejects when required env vars are missing, to make it easier to detect these issues early on. Errors occurring at network or queue levels will be reported as `SendMessageError` in the return value.
 
-### :new: Batch event triggering
+### Batch event triggering
 
 Starting in v2, it's possible to trigger multiple events at once. To do so, use the `WebhookTrigger.sendBatch` method, passing an array of events.
 
@@ -149,6 +153,7 @@ type WebhookEvent = {
         [x: string]: any;
     };
     targetUserId?: string;
+    correlationId?: string;
 };
 
 type SendMessageBatchResult = {
@@ -165,20 +170,56 @@ The optional `targetUserId` field per event allows directing delivery only to su
 
 Each event is validated against its client's locally synced subscriptions (see [Subscription pre-filtering](#subscription-pre-filtering)). Events without an active subscription are **not** queued, reported in the new `skippedCount` and added to `outputs` as `{ success: true, skipped: true, message }`, without affecting `successCount`/`failedCount`.
 
-This method only rejects when required env vars are missing or the events sent are not an array, to make easier to detect this issues on early testing. Errors ocurring at network, queue or individual event validation levels will be reported as a `failedCount` and the detail will be present as a `SendMessageError` in the `outputs` property.
+This method only rejects when required env vars are missing or the events sent are not an array, to make it easier to detect these issues early on. Errors occurring at network, queue or individual event validation levels will be reported as a `failedCount` and the detail will be present as a `SendMessageError` in the `outputs` property.
+
+> **Added in v3.1.0**: the optional `correlationId` field per event. If provided, it's echoed back in the corresponding `output` (in all 4 possible outcomes: success, send failure, skipped, validation failure), letting the caller correlate each output 1:1 with its originating event — regardless of order or content collisions. It's **metadata only**: it's never sent to the webhook subscriber and it's never used as the underlying SQS batch entry `Id` (which stays the event's positional index, since a `correlationId` could contain invalid characters for it or be repeated across events). Events without it behave exactly as before (the field is simply absent from the output).
+>
+> ```js
+> const result = await WebhookTrigger.sendBatch([
+>     { clientCode: 'currentClientCode', entity: 'order', eventName: 'dispatched', content: { id: 'order-1' }, correlationId: 'record-1' },
+>     { clientCode: 'currentClientCode', entity: 'order', eventName: 'dispatched', content: { id: 'order-2' }, correlationId: 'record-2' }
+> ]);
+>
+> // result.outputs:
+> // [
+> //     { success: true, messageId: 'aaaa-...', correlationId: 'record-1' },
+> //     { success: false, message: { ... }, errorMessage: 'SDK Error', correlationId: 'record-2' }
+> // ]
+> ```
 
 ### Subscription pre-filtering
 
-`send()` and `sendBatch()` avoid queuing webhooks nobody is subscribed to. They validate each event against a **local copy** of the client's subscriptions, stored in the service's own `clients` collection under the `webhookSubscriptions` field (an array of `service:entity:eventName` keys).
+`send()` and `sendBatch()` avoid queuing webhooks nobody is subscribed to. They validate each event against a **local copy** of the client's subscriptions, stored in the service's own `clients` collection under the `webhookSubscriptions` field (an array of `service:entity:eventName` keys). On read, it's converted to a `Set` (kept in memory only) for O(1) lookup and cached per `clientCode` for 5 minutes, since this check runs at very high frequency (specially for stock webhooks).
 
-- If `webhookSubscriptions` is an array (including `[]`) → the event is queued only if it includes `${JANIS_SERVICE_NAME}:${entity}:${eventName}`, otherwise it is skipped.
-- If `webhookSubscriptions` is `undefined` (client never synced) or the read fails (client not found, client model missing, Mongo error) → **fail-open**: the event is queued anyway and the case is logged.
+- If `webhookSubscriptions` is synced (including an empty array) → the event is queued only if the set includes `${JANIS_SERVICE_NAME}:${entity}:${eventName}`, otherwise it is skipped.
+- If `webhookSubscriptions` is `undefined` (client never synced) or the read fails (client not found, client model missing, Mongo error) → **fail-open**: the event is queued anyway. The former case is logged as a `warn`, the latter as an `error`.
 
 This means a service that updates the package but does **not** mount the consumer (below) never populates `webhookSubscriptions`, so it always fail-opens and behaves exactly as before. The pre-filtering only kicks in once the consumer is mounted (and the initial backfill has run).
 
 The local copy is kept up to date by push: this package exposes an SQS consumer subscribed to the webhooks-service `clientSubscriptionsUpdated` topic. On every change it reconsolidates the client's subscriptions (invoking the `ClientTriggersSubscriptions` lambda, filtered by this service) and overwrites the local copy.
 
 > **IMPORTANT**: The host service must expose its `client` model at `models/client` (resolved as `{process.cwd()}/{MS_PATH}/models/client`), pointing to the `core` `clients` collection. This is the standard Janis client model.
+
+#### `WebhookTrigger.shouldSend()`
+
+> **Added in v3.1.0**
+
+`send()`/`sendBatch()` already apply this pre-filtering internally, so in most cases you don't need to call this method yourself. It's exposed for cases where building the event `content` is expensive (eg. extra queries, formatting) and you want to short-circuit **before** doing that work, instead of paying the cost only to have the event skipped afterwards.
+
+```ts
+WebhookTrigger.shouldSend(clientCode: string, entity: string, eventName: string): Promise<boolean>
+```
+
+It runs the exact same check described above (same `Set`, same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself.
+
+```js
+const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');
+
+if(await WebhookTrigger.shouldSend('currentClientCode', 'order', 'created')) {
+    const content = await buildExpensiveOrderPayload(order); // only computed if there's an active subscription
+    await WebhookTrigger.send('currentClientCode', 'order', 'created', content);
+}
+```
 
 #### Mounting the subscriptions consumer
 
@@ -215,7 +256,7 @@ serverlessHelperHooks(SQSHelper, {
 > Send an event when an order is created
 
 ```js
-const WebhookTrigger = require('@janiscommerce/webhook-trigger');
+const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');
 
 await WebhookTrigger.send('currentClientCode', 'order', 'created', {
 	id: 'd555345345345aa67a342a55',
@@ -227,9 +268,9 @@ await WebhookTrigger.send('currentClientCode', 'order', 'created', {
 > Send multiple events when multiple orders are dispatched (you could even send events for more than one `clientCode` and/or each with a different `eventName`)
 
 ```js
-const WebhookTrigger = require('@janiscommerce/webhook-trigger');
+const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');
 
-await WebhookTrigger.send([
+await WebhookTrigger.sendBatch([
 	{
 		clientCode: 'currentClientCode',
 		entity: 'order',

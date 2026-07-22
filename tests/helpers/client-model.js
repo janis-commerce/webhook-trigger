@@ -45,15 +45,16 @@ describe('helpers/client-model', () => {
 
 	describe('getSubscriptions()', () => {
 
-		it('Should return the client synced subscriptions', async () => {
+		it('Should return the client synced subscriptions as a Set', async () => {
 
 			const getBy = sinon.stub().resolves([{ code: clientCode, webhookSubscriptions: subscriptions }]);
 			sinon.stub(ClientModel, 'getModel').returns({ getBy });
 
 			const result = await ClientModel.getSubscriptions(clientCode);
 
-			assert.deepStrictEqual(result, subscriptions);
-			sinon.assert.calledOnceWithExactly(getBy, 'code', clientCode, { limit: 1 });
+			assert.ok(result instanceof Set);
+			assert.deepStrictEqual([...result], subscriptions);
+			sinon.assert.calledOnceWithExactly(getBy, 'code', clientCode, { limit: 1, fields: ['code', 'webhookSubscriptions'] });
 		});
 
 		it('Should return undefined when the client is found but has no synced subscriptions', async () => {
@@ -90,8 +91,8 @@ describe('helpers/client-model', () => {
 			const firstRead = await ClientModel.getSubscriptions(clientCode);
 			const secondRead = await ClientModel.getSubscriptions(clientCode);
 
-			assert.deepStrictEqual(firstRead, subscriptions);
-			assert.deepStrictEqual(secondRead, subscriptions);
+			assert.deepStrictEqual([...firstRead], subscriptions);
+			assert.strictEqual(firstRead, secondRead, 'The cached Set instance should be reused, not recomputed');
 			sinon.assert.calledOnce(getBy);
 		});
 
