@@ -829,6 +829,18 @@ describe('Webhook Trigger', () => {
 			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 1);
 		});
 
+		it('Should emit when the method is called unbound from the class', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([eventKey]));
+			this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+			const { send } = WebhookTrigger;
+
+			const response = await send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, messageId: queueResponse.MessageId });
+		});
+
 		it('Should skip and return { success: true, skipped: true } when the client is not subscribed to the event', async () => {
 
 			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:other:event`]));
@@ -1164,6 +1176,69 @@ describe('Webhook Trigger', () => {
 			const result = await WebhookTrigger.shouldSend(clientCode, entity, eventName);
 
 			assert.strictEqual(result, true);
+		});
+	});
+
+	describe('isSubscribed()', () => {
+
+		beforeEach(() => {
+			ensureEnvVars(serviceName);
+		});
+
+		afterEach(() => {
+			process.env = { ...env };
+			sinon.restore();
+		});
+
+		const eventKey = `${serviceName}:${entity}:${eventName}`;
+
+		it('Should reject if JANIS_SERVICE_NAME environment variable is not set', async () => {
+			delete process.env.JANIS_SERVICE_NAME;
+			await assert.rejects(() => WebhookTrigger.isSubscribed(clientCode, entity, eventName), /JANIS_SERVICE_NAME/);
+		});
+
+		it('Should resolve true when the client is subscribed to the event', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([eventKey]));
+
+			const result = await WebhookTrigger.isSubscribed(clientCode, entity, eventName);
+
+			assert.strictEqual(result, true);
+			sinon.assert.calledOnceWithExactly(ClientModel.getSubscriptions, clientCode);
+		});
+
+		it('Should resolve false when the client is not subscribed to the event', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:other:event`]));
+
+			const result = await WebhookTrigger.isSubscribed(clientCode, entity, eventName);
+
+			assert.strictEqual(result, false);
+		});
+
+		it('Should resolve false when the client has an empty subscriptions Set', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set());
+
+			const result = await WebhookTrigger.isSubscribed(clientCode, entity, eventName);
+
+			assert.strictEqual(result, false);
+		});
+
+		it('Should resolve undefined when the client has no synced subscriptions', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(undefined);
+
+			const result = await WebhookTrigger.isSubscribed(clientCode, entity, eventName);
+
+			assert.strictEqual(result, undefined);
+		});
+
+		it('Should reject when the subscriptions read fails', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').rejects(new Error('Client not found'));
+
+			await assert.rejects(() => WebhookTrigger.isSubscribed(clientCode, entity, eventName), { message: 'Client not found' });
 		});
 	});
 

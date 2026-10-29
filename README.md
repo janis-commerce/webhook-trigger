@@ -210,7 +210,7 @@ The local copy is kept up to date by push: this package exposes an SQS consumer 
 WebhookTrigger.shouldSend(clientCode: string, entity: string, eventName: string): Promise<boolean>
 ```
 
-It runs the exact same check described above (same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself.
+It runs the exact same check described above (same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself. Don't use it for business logic that depends on the subscription: use [`isSubscribed()`](#webhooktriggerissubscribed) instead.
 
 ```js
 const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');
@@ -219,6 +219,41 @@ if(await WebhookTrigger.shouldSend('currentClientCode', 'order', 'created')) {
     const content = await buildExpensiveOrderPayload(order); // only computed if there's an active subscription
     await WebhookTrigger.send('currentClientCode', 'order', 'created', content);
 }
+```
+
+#### `WebhookTrigger.isSubscribed()`
+
+> **Added in v3.2.0**
+
+Strict version of `shouldSend()`. Use it when business logic depends on whether the client is subscribed (eg. enabling a flow only for subscribed clients). `shouldSend()` is not suitable for that: it fail-opens, so an unsynced client or a failed read would look like an active subscription.
+
+```ts
+WebhookTrigger.isSubscribed(clientCode: string, entity: string, eventName: string): Promise<boolean | undefined>
+```
+
+- `true` → the client is subscribed to the event.
+- `false` → the client's subscriptions are synced (including an empty array) and don't include the event.
+- `undefined` → the client has no synced subscriptions (`webhookSubscriptions` is `undefined`). The caller decides how to handle it.
+- It **rejects** if the read fails (client not found, client model missing, Mongo error), instead of failing open.
+
+It shares the 5 minutes cache with `send()`, `sendBatch()` and `shouldSend()`, so a subscription change can take up to 5 minutes to be reflected.
+
+| | `shouldSend()` | `isSubscribed()` |
+|---|---|---|
+| Use it to | Short-circuit expensive processing before sending | Decide business logic based on the subscription |
+| No synced subscriptions | `true` (fail-open, logged as `warn`) | `undefined` |
+| Read fails | `true` (fail-open, logged as `error`) | Rejects with the read error |
+
+```js
+const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');
+
+const isSubscribed = await WebhookTrigger.isSubscribed('currentClientCode', 'order', 'pending-validation');
+
+if(isSubscribed === undefined)
+    throw new Error('Client webhook subscriptions are not synced yet');
+
+if(isSubscribed)
+    await startValidationFlow(order); // only for clients subscribed to the event
 ```
 
 #### Mounting the subscriptions consumer
