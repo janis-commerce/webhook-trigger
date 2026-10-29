@@ -28,6 +28,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 		handler = { addFailedMessage: sinon.stub() };
 		logger = { info: sinon.stub(), error: sinon.stub() };
 		consumer = new SyncWebhookSubscriptionsConsumer(handler);
+		sinon.spy(consumer, 'addFailedMessage');
 	});
 
 	afterEach(() => {
@@ -50,7 +51,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 			{ serviceCode: serviceName }
 		);
 		sinon.assert.calledOnceWithExactly(ClientModel.updateSubscriptions, clientCode, triggersEvents);
-		sinon.assert.notCalled(handler.addFailedMessage);
+		sinon.assert.notCalled(consumer.addFailedMessage);
 	});
 
 	it('Should persist an empty array when the client has no active subscriptions', async () => {
@@ -61,7 +62,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 		await consumer.processSingleRecord(buildRecord({ clientCode, triggersEvents: [], source: 'client-created' }), logger);
 
 		sinon.assert.calledOnceWithExactly(ClientModel.updateSubscriptions, clientCode, []);
-		sinon.assert.notCalled(handler.addFailedMessage);
+		sinon.assert.notCalled(consumer.addFailedMessage);
 	});
 
 	it('Should discard the record without marking a batch failure when the body has no clientCode', async () => {
@@ -74,7 +75,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 		sinon.assert.calledOnce(logger.error);
 		sinon.assert.notCalled(invokerStub);
 		sinon.assert.notCalled(updateStub);
-		sinon.assert.notCalled(handler.addFailedMessage);
+		sinon.assert.notCalled(consumer.addFailedMessage);
 	});
 
 	it('Should discard the record when there is no body at all', async () => {
@@ -84,7 +85,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 		await consumer.processSingleRecord({ messageId }, logger);
 
 		sinon.assert.notCalled(invokerStub);
-		sinon.assert.notCalled(handler.addFailedMessage);
+		sinon.assert.notCalled(consumer.addFailedMessage);
 	});
 
 	it('Should mark the record as failed when the lambda invocation fails', async () => {
@@ -95,7 +96,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 		await consumer.processSingleRecord(buildRecord({ clientCode }), logger);
 
 		sinon.assert.notCalled(updateStub);
-		sinon.assert.calledOnceWithExactly(handler.addFailedMessage, messageId);
+		sinon.assert.calledOnceWithExactly(consumer.addFailedMessage, messageId);
 	});
 
 	it('Should mark the record as failed when the lambda response has no valid triggersEvents', async () => {
@@ -106,7 +107,7 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 		await consumer.processSingleRecord(buildRecord({ clientCode }), logger);
 
 		sinon.assert.notCalled(updateStub);
-		sinon.assert.calledOnceWithExactly(handler.addFailedMessage, messageId);
+		sinon.assert.calledOnceWithExactly(consumer.addFailedMessage, messageId);
 	});
 
 	it('Should mark the record as failed when the subscriptions write fails', async () => {
@@ -116,6 +117,6 @@ describe('SyncWebhookSubscriptionsConsumer', () => {
 
 		await consumer.processSingleRecord(buildRecord({ clientCode }), logger);
 
-		sinon.assert.calledOnceWithExactly(handler.addFailedMessage, messageId);
+		sinon.assert.calledOnceWithExactly(consumer.addFailedMessage, messageId);
 	});
 });
