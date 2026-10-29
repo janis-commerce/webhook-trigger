@@ -829,6 +829,18 @@ describe('Webhook Trigger', () => {
 			assert.strictEqual(this.SQSClientMock.commandCalls(SendMessageCommand).length, 1);
 		});
 
+		it('Should emit when the method is called unbound from the class', async () => {
+
+			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([eventKey]));
+			this.SQSClientMock.on(SendMessageCommand).resolves(queueResponse);
+
+			const { send } = WebhookTrigger;
+
+			const response = await send(clientCode, entity, eventName, content);
+
+			assert.deepStrictEqual(response, { success: true, messageId: queueResponse.MessageId });
+		});
+
 		it('Should skip and return { success: true, skipped: true } when the client is not subscribed to the event', async () => {
 
 			sinon.stub(ClientModel, 'getSubscriptions').resolves(new Set([`${serviceName}:other:event`]));

@@ -210,7 +210,7 @@ The local copy is kept up to date by push: this package exposes an SQS consumer 
 WebhookTrigger.shouldSend(clientCode: string, entity: string, eventName: string): Promise<boolean>
 ```
 
-It runs the exact same check described above (same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself.
+It runs the exact same check described above (same cache, same **fail-open** semantics: resolves `true` when the client has no synced subscriptions or the read fails). It never queues anything by itself. Don't use it for business logic that depends on the subscription: use [`isSubscribed()`](#webhooktriggerissubscribed) instead.
 
 ```js
 const { WebhookTrigger } = require('@janiscommerce/webhook-trigger');
